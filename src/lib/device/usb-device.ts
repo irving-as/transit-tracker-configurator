@@ -21,11 +21,6 @@ export class UsbTransitTrackerDevice implements TransitTrackerDevice {
   private rpc: ESPHomeRpcClient | null = null
 
   async close() {
-    if (this.rpc) {
-      await this.rpc.disconnect()
-      this.rpc = null
-    }
-
     if (this.port) {
       try {
         await this.port.close()
@@ -34,6 +29,11 @@ export class UsbTransitTrackerDevice implements TransitTrackerDevice {
       }
 
       this.port = null
+    }
+
+    if (this.rpc) {
+      await this.rpc.disconnect()
+      this.rpc = null
     }
   }
 
@@ -80,8 +80,7 @@ export class UsbTransitTrackerDevice implements TransitTrackerDevice {
       this.rpc = new ESPHomeRpcClient(this.port)
 
       this.rpc.addEventListener("disconnect", async () => {
-        this.port = null
-        this.rpc = null
+        await this.close()
       })
 
       await this.rpc.connect()
