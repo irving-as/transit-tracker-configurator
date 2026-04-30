@@ -11,7 +11,7 @@
   import { Label } from "$lib/components/ui/label"
   import { Input } from "../../ui/input"
   import { mode as appearanceMode } from "mode-watcher"
-  import type { FeatureCollection } from "geojson"
+  import type { BBox, FeatureCollection } from "geojson"
   import * as turf from "@turf/turf"
   import { api, type Stop } from "$lib/api"
   import { onMount } from "svelte"
@@ -39,6 +39,7 @@
   let disabled = $derived(selected.length >= 25)
   let stopGroups: Stop[][] = $state([])
   let abortController: AbortController | null = $state(null)
+  let lastBbox: BBox | null = $state(null)
   let map: MapLibreMap | undefined = $state()
 
   let mapStyle = $derived($appearanceMode === "dark" ? "dark-matter-gl" : "positron-gl")
@@ -101,10 +102,25 @@
       return
     }
 
+    if (
+      lastBbox &&
+      turf.booleanContains(
+        turf.bboxPolygon(lastBbox),
+        turf.bboxPolygon(boundsToBbox(target.getBounds()))
+      )
+    ) {
+      return
+    }
+
     needsZoomIn = false
 
     const bounds = target.getBounds()
     stopGroups = await getStops(bounds.toArray())
+    lastBbox = boundsToBbox(bounds)
+  }
+
+  function boundsToBbox(bounds: maplibregl.LngLatBounds): [number, number, number, number] {
+    return [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]
   }
 
   function colorIsDark(color: string) {
