@@ -510,6 +510,7 @@ export class ESPHomeRpcClient extends EventTarget {
     } catch (error: any) {
       if (!error.message.includes("Releasing")) {
         await this.disconnect()
+        this.dispatchEvent(new Event("read-error"))
         throw error
       }
     }

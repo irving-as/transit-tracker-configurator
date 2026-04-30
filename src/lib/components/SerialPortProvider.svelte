@@ -22,7 +22,7 @@
       }
 
       return await navigator.serial.requestPort({
-        filters: [{ usbVendorId: 0x303a, usbProductId: 0x1001 }]
+        filters: import.meta.env.DEV ? [] : [{ usbVendorId: 0x303a, usbProductId: 0x1001 }]
       })
     } catch (e: any) {
       if (e.message.includes("No port selected") || (e as DOMException).name === "NotFoundError") {
