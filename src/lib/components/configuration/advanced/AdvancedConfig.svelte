@@ -3,10 +3,11 @@
   import { Label } from "../../ui/label"
   import { config, type Localization } from "$lib/state"
   import { Button } from "../../ui/button"
-  import { Pencil } from "@lucide/svelte"
+  import { ClipboardCopy, ClipboardPaste, Pencil } from "@lucide/svelte"
   import ChangeHostDialog from "./ChangeHostDialog.svelte"
   import * as Dialog from "$lib/components/ui/dialog"
   import LocalizationOptions from "./LocalizationOptions.svelte"
+  import { toast } from "svelte-sonner"
 
   let showChangeHostDialog = $state(false)
 
@@ -23,6 +24,35 @@
 
   function saveLocalization(localization: Localization) {
     $config.localization = localization
+  }
+
+  async function copyConfig() {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify($config))
+      toast.success("Configuration copied to clipboard")
+    } catch (e: any) {
+      toast.error("Failed to copy configuration to clipboard", {
+        description: e.message || "An unknown error occurred"
+      })
+    }
+  }
+
+  function pasteConfig() {
+    const text = prompt(
+      "NOTE: This will override any settings you have configured.\n\nPaste your configuration JSON here:"
+    )
+    if (text) {
+      try {
+        const parsedConfig = JSON.parse(text)
+        $config = { ...$config, ...parsedConfig }
+        toast.success("Configuration pasted from clipboard")
+      } catch (e: any) {
+        console.error("Failed to paste configuration from clipboard", e)
+        toast.error("Failed to paste configuration from clipboard", {
+          description: e.message || "An unknown error occurred"
+        })
+      }
+    }
   }
 </script>
 
@@ -87,4 +117,22 @@
   </div>
 
   <LocalizationOptions configState={$config} onsave={saveLocalization} />
+</div>
+
+<div class="mb-5">
+  <h4 class="mb-3 scroll-m-20 text-xl font-semibold tracking-tight">Tools</h4>
+
+  <div class="mb-3">
+    <Button size="sm" onclick={copyConfig}>
+      <ClipboardCopy />
+      Copy raw configuration
+    </Button>
+  </div>
+
+  <div>
+    <Button size="sm" variant="destructive" onclick={pasteConfig}>
+      <ClipboardPaste />
+      Paste raw configuration
+    </Button>
+  </div>
 </div>
