@@ -5,6 +5,12 @@
   import { Button } from "$lib/components/ui/button"
   import * as Card from "$lib/components/ui/card"
   import { ESPHomeRpcClient, type DeviceInfo } from "$lib/esphome-rpc"
+  import {
+    getLatestFirmwareVersion,
+    isUpdateAvailable,
+    FIRMWARE_BIN_URL,
+    releaseNotesUrl
+  } from "$lib/firmware"
   import { getSerialContext } from "$lib/serial-context"
   import { CircleCheck, Clipboard } from "@lucide/svelte"
   import { onDestroy } from "svelte"
@@ -19,16 +25,6 @@
   let rpcClient: ESPHomeRpcClient | null = $state(null)
 
   const ctx = getSerialContext()
-
-  async function getLatestVersion() {
-    const resp = await fetch("https://transit-tracker.eastsideurbanism.org/firmware/manifest.json")
-    if (!resp.ok) {
-      throw new Error(`Failed to fetch firmware manifest: ${resp.status} ${resp.statusText}`)
-    }
-
-    const manifest = await resp.json()
-    return manifest.version
-  }
 
   async function getCurrentVersion() {
     port = await ctx.getOpenSerialPort()
@@ -62,7 +58,7 @@
 
     try {
       const [latestVersion, currentVersion] = await Promise.all([
-        getLatestVersion(),
+        getLatestFirmwareVersion(),
         getCurrentVersion()
       ])
 
@@ -92,7 +88,7 @@
   </Card.Header>
   <Card.Content>
     {#if currentFirmwareVersion && latestFirmwareVersion}
-      {#if currentFirmwareVersion === latestFirmwareVersion}
+      {#if !isUpdateAvailable(currentFirmwareVersion, latestFirmwareVersion)}
         <div class="flex items-center gap-2 text-lg">
           <CircleCheck size={24} class="text-green-400" />
           <strong
@@ -111,14 +107,14 @@
         <Button
           variant="secondary"
           class="mb-3 w-full"
-          href="https://github.com/EastsideUrbanism/transit-tracker/releases/tag/{latestFirmwareVersion}"
+          href={releaseNotesUrl(latestFirmwareVersion)}
           target="_blank"
         >
           <Clipboard /> View release notes
         </Button>
 
         <FirmwareFlasher
-          file="https://transit-tracker.eastsideurbanism.org/firmware/firmware.bin"
+          file={FIRMWARE_BIN_URL}
           offset={0x10000}
           eraseFlash={false}
           bootButtonRequired={false}

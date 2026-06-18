@@ -2,12 +2,11 @@ import { getWebSocketEndpoint, type ConfigState } from "./state"
 import type { TransitTrackerDevice } from "./device/transit-tracker-device"
 import semver from "semver"
 
-async function* configRequestGenerator(device: TransitTrackerDevice, config: ConfigState) {
-  let projectVersion = await device.getProjectVersion()
-  if (projectVersion === "dev") {
-    projectVersion = "999.0.0"
-  }
-
+async function* configRequestGenerator(
+  device: TransitTrackerDevice,
+  config: ConfigState,
+  projectVersion: string | null
+) {
   yield device.setTextEntity("base_url_config", getWebSocketEndpoint(config.apiBaseUrl))
 
   yield device.setTextEntity("feed_code_config", "")
@@ -70,7 +69,10 @@ async function* configRequestGenerator(device: TransitTrackerDevice, config: Con
 export async function pushConfigToDevice(config: ConfigState, device: TransitTrackerDevice) {
   const results = []
 
-  const configRequests = configRequestGenerator(device, config)
+  const deviceVersion = await device.getProjectVersion()
+  const normalizedVersion = deviceVersion === "dev" ? "999.0.0" : deviceVersion
+
+  const configRequests = configRequestGenerator(device, config, normalizedVersion)
   for await (const result of configRequests) {
     results.push(result)
   }
@@ -80,5 +82,5 @@ export async function pushConfigToDevice(config: ConfigState, device: TransitTra
 
   await device.close?.()
 
-  return results
+  return { results, deviceVersion }
 }

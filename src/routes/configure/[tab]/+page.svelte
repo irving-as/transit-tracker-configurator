@@ -8,7 +8,17 @@
   import * as Tabs from "$lib/components/ui/tabs"
   import { config, deviceConnection, type DeviceConnection } from "$lib/state"
   import * as Dialog from "$lib/components/ui/dialog"
-  import { Cable, Cog, FileCode, Paintbrush, Route, Unplug, Usb, Wifi } from "@lucide/svelte"
+  import {
+    Cable,
+    Cog,
+    FileCode,
+    FlaskConical,
+    Paintbrush,
+    Route,
+    Unplug,
+    Usb,
+    Wifi
+  } from "@lucide/svelte"
   import ConnectDialog from "$lib/components/configuration/ConnectDialog.svelte"
   import TopNav from "$lib/components/TopNav.svelte"
   import GenerateYamlDialog from "$lib/components/configuration/GenerateYamlDialog.svelte"
@@ -84,6 +94,9 @@
       <Button variant="link" target="_blank" size="small" href={$deviceConnection.baseUrl}
         >{connectedIp}</Button
       >
+    {:else if $deviceConnection.type === "fake"}
+      <FlaskConical size={16} class="text-muted-foreground" />
+      Fake device
     {:else}
       <Unplug size={16} class="text-muted-foreground" />
       Not connected

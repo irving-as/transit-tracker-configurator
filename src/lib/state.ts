@@ -1,5 +1,6 @@
 import { writable } from "svelte/store"
 import { defaultBaseUrl } from "./config"
+import type { FakeDeviceOptions } from "./device/fake-device"
 
 export interface RouteAtStop {
   stopId: string
@@ -148,8 +149,9 @@ export const config = createPersistentStore<ConfigState>(
 )
 
 export interface DeviceConnection {
-  type: "network" | "usb" | "none"
+  type: "network" | "usb" | "none" | "fake"
   baseUrl?: string
+  fakeOptions?: FakeDeviceOptions
 }
 
 export const deviceConnection = createPersistentStore<DeviceConnection>("deviceConnection", {
