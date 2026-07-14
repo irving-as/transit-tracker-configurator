@@ -130,6 +130,24 @@
     return Math.max(r, g, b) < 80
   }
 
+  function isErrorWebGlRelated(error: any) {
+    return (
+      error instanceof Error && (error.message.includes("WebGL") || error.message.includes("webgl"))
+    )
+  }
+
+  function formatErrorWithStack(error: any) {
+    if (error instanceof Error) {
+      return ["```", `${error.name}: ${error.message}\n`, error.stack ?? "", "```"].join("\n")
+    }
+
+    return ["```", String(error), "```"].join("\n")
+  }
+
+  async function copyErrorDetails(error: any) {
+    await navigator.clipboard.writeText(formatErrorWithStack(error))
+  }
+
   const onMapMoved = debounce(_onMapMoved, 1000)
 
   onMount(() => {
@@ -250,93 +268,134 @@
     </div>
   </div>
 
-  <MapLibre
-    bind:map
-    style={`https://basemaps.cartocdn.com/gl/${mapStyle}-style/style.json`}
-    standardControls
-    class="h-full w-full"
-    onmoveend={onMapMoved}
-    bounds={[-133.066406, 18.812718, -59.80957, 53.304621]}
-  >
-    <Control position="top-right">
-      <LocationSearch
-        apiKey={googleMapsApiKey}
-        onPlaceSelected={(location) => {
-          map?.flyTo({ center: [location.lng, location.lat], zoom: 16, animate: false })
-        }}
-      />
-    </Control>
+  <svelte:boundary>
+    {#snippet failed(error: any)}
+      <div class="flex h-full w-full flex-col items-center justify-center gap-4 p-8 sm:p-12">
+        <div class="w-full max-w-2xl rounded-lg border bg-background/95 p-6 shadow-sm">
+          <p class="text-center text-xl font-semibold tracking-tight">Failed to load route map</p>
 
-    <GeoJSON id="service-areas" data={serviceAreas} maxzoom={15}>
-      <FillLayer
-        id="service-areas-fill"
-        paint={{
-          "fill-color": "#51c551",
-          "fill-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.5, 10, 0.5, 13, 0]
-        }}
-      />
+          {#if isErrorWebGlRelated(error)}
+            <div
+              class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
+            >
+              <p>
+                It looks like your browser either doesn't support WebGL or has it disabled. Please
+                try:
+              </p>
+              <ul class="mt-2 list-inside list-disc">
+                <li>Updating your browser and GPU drivers to the latest version</li>
+                <li>Enabling WebGL and hardware acceleration in your browser settings</li>
+              </ul>
+            </div>
+          {/if}
 
-      <LineLayer
-        id="service-areas-line"
-        paint={{
-          "line-color": "#51c551",
-          "line-opacity": ["interpolate", ["linear"], ["zoom"], 0, 1, 10, 0.8, 13, 0],
-          "line-width": 2
-        }}
-      />
-    </GeoJSON>
+          <div class="mt-4 rounded-md border bg-muted/40 p-3 text-left">
+            <p class="mb-2 text-xs font-semibold tracking-wide text-muted-foreground">
+              Error details
+            </p>
+            <p
+              class="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-background/70 p-2 font-mono text-xs sm:text-sm"
+            >
+              {error}
+            </p>
+            <div class="mt-2 flex justify-start">
+              <Button size="sm" variant="outline" onclick={() => copyErrorDetails(error)}>
+                Copy error
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    {/snippet}
 
-    {#each stopGroups as stops (stops[0].stopId)}
-      <DefaultMarker lngLat={[stops[0].lon, stops[0].lat]} class="cursor-pointer">
-        <RouteChooserPopup
-          {stops}
-          {selected}
-          {disabled}
-          onRouteSelected={(route: RouteAtStop) => selected.push(route)}
-          onRouteDeselected={(route: RouteAtStop) =>
-            selected.splice(
-              selected.findIndex((r) => r.routeId === route.routeId && r.stopId === route.stopId),
-              1
-            )}
+    <MapLibre
+      bind:map
+      style={`https://basemaps.cartocdn.com/gl/${mapStyle}-style/style.json`}
+      standardControls
+      class="h-full w-full"
+      onmoveend={onMapMoved}
+      bounds={[-133.066406, 18.812718, -59.80957, 53.304621]}
+    >
+      <Control position="top-right">
+        <LocationSearch
+          apiKey={googleMapsApiKey}
+          onPlaceSelected={(location) => {
+            map?.flyTo({ center: [location.lng, location.lat], zoom: 16, animate: false })
+          }}
         />
-      </DefaultMarker>
-    {/each}
+      </Control>
 
-    {#if needsZoomIn}
-      <div
-        class="pointer-events-none absolute z-[999] flex h-full w-full items-center justify-center text-center"
-      >
-        <p class="rounded-lg bg-black/60 p-4 text-4xl text-white">Zoom in to see stops</p>
-      </div>
-    {/if}
+      <GeoJSON id="service-areas" data={serviceAreas} maxzoom={15}>
+        <FillLayer
+          id="service-areas-fill"
+          paint={{
+            "fill-color": "#51c551",
+            "fill-opacity": ["interpolate", ["linear"], ["zoom"], 0, 0.5, 10, 0.5, 13, 0]
+          }}
+        />
 
-    {#if !needsZoomIn && abortController}
-      <div
-        class="pointer-events-none absolute z-[999] flex h-full w-full items-center justify-center text-center"
-      >
-        <p class="rounded-lg bg-black/60 p-4 text-4xl text-white">
-          <LoaderCircle class="animate-spin" />
-        </p>
-      </div>
-    {/if}
+        <LineLayer
+          id="service-areas-line"
+          paint={{
+            "line-color": "#51c551",
+            "line-opacity": ["interpolate", ["linear"], ["zoom"], 0, 1, 10, 0.8, 13, 0],
+            "line-width": 2
+          }}
+        />
+      </GeoJSON>
 
-    {#if !needsZoomIn && !abortController && stopGroups.length === 0}
-      <div
-        class="pointer-events-none absolute z-[999] flex h-full w-full items-center justify-center text-center"
-      >
-        <p class="flex flex-col rounded-lg bg-black/60 p-3 text-2xl text-white">
-          No stops found
-          <Button
-            class="pointer-events-auto mt-1 text-blue-400"
-            variant="link"
-            size="small"
-            href="https://transit-tracker.eastsideurbanism.org/docs/user-manual/faq/agency-support"
-            target="_blank"
-          >
-            Which agencies are supported?
-          </Button>
-        </p>
-      </div>
-    {/if}
-  </MapLibre>
+      {#each stopGroups as stops (stops[0].stopId)}
+        <DefaultMarker lngLat={[stops[0].lon, stops[0].lat]} class="cursor-pointer">
+          <RouteChooserPopup
+            {stops}
+            {selected}
+            {disabled}
+            onRouteSelected={(route: RouteAtStop) => selected.push(route)}
+            onRouteDeselected={(route: RouteAtStop) =>
+              selected.splice(
+                selected.findIndex((r) => r.routeId === route.routeId && r.stopId === route.stopId),
+                1
+              )}
+          />
+        </DefaultMarker>
+      {/each}
+
+      {#if needsZoomIn}
+        <div
+          class="pointer-events-none absolute z-[999] flex h-full w-full items-center justify-center text-center"
+        >
+          <p class="rounded-lg bg-black/60 p-4 text-4xl text-white">Zoom in to see stops</p>
+        </div>
+      {/if}
+
+      {#if !needsZoomIn && abortController}
+        <div
+          class="pointer-events-none absolute z-[999] flex h-full w-full items-center justify-center text-center"
+        >
+          <p class="rounded-lg bg-black/60 p-4 text-4xl text-white">
+            <LoaderCircle class="animate-spin" />
+          </p>
+        </div>
+      {/if}
+
+      {#if !needsZoomIn && !abortController && stopGroups.length === 0}
+        <div
+          class="pointer-events-none absolute z-[999] flex h-full w-full items-center justify-center text-center"
+        >
+          <p class="flex flex-col rounded-lg bg-black/60 p-3 text-2xl text-white">
+            No stops found
+            <Button
+              class="pointer-events-auto mt-1 text-blue-400"
+              variant="link"
+              size="small"
+              href="https://transit-tracker.eastsideurbanism.org/docs/user-manual/faq/agency-support"
+              target="_blank"
+            >
+              Which agencies are supported?
+            </Button>
+          </p>
+        </div>
+      {/if}
+    </MapLibre>
+  </svelte:boundary>
 </div>
