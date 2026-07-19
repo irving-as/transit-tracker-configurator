@@ -23,6 +23,8 @@ async function* configRequestGenerator(
       .join(";")
   )
 
+  yield device.setTextEntity("header_text_config", config.headerText)
+
   yield device.setTextEntity(
     "abbreviations_config",
     config.abbreviations

@@ -41,6 +41,7 @@ export interface ConfigState {
   apiBaseUrl: string
   routes: RouteAtStop[]
   routeStyles: RouteStyle[]
+  headerText: string
   abbreviations: Abbreviation[]
   stopTimeOffsets: Record<string, number>
   timeDisplay: "arrival" | "departure"
@@ -130,6 +131,7 @@ export const config = createPersistentStore<ConfigState>(
     apiBaseUrl: defaultBaseUrl,
     routes: [],
     routeStyles: [],
+    headerText: "",
     abbreviations: [],
     stopTimeOffsets: {},
     timeDisplay: "arrival",
