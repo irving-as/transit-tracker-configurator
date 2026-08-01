@@ -1,10 +1,7 @@
 <script lang="ts">
-  import type { Abbreviation, ConfigState, Localization } from "$lib/state"
-  import { Button } from "$lib/components/ui/button"
+  import type { ConfigState, Localization } from "$lib/state"
   import { Label } from "$lib/components/ui/label"
   import { Input } from "$lib/components/ui/input"
-  import { Card, CardContent } from "$lib/components/ui/card"
-  import { Trash } from "@lucide/svelte"
 
   interface Props {
     configState: ConfigState
@@ -13,31 +10,29 @@
 
   let { configState, onsave }: Props = $props()
 
-  let localization: Localization = $state(configState.localization)
+  let localization = $derived(configState.localization)
 
-  $effect(() => {
-    onsave(localization)
-  })
+  function updateLocalization(field: keyof Localization, value: string) {
+    onsave({ ...localization, [field]: value })
+  }
 </script>
 
+{#snippet localizationField(field: keyof Localization, label: string, placeholder: string)}
+  <div class="flex flex-col gap-2">
+    <Label for={field} class="flex items-center gap-2">{label}</Label>
+    <Input
+      {placeholder}
+      value={localization[field]}
+      oninput={(e) => updateLocalization(field, e.currentTarget.value)}
+      name={field}
+      id={field}
+    />
+  </div>
+{/snippet}
+
 <div class="grid grid-cols-2 gap-3">
-  <div class="flex flex-col gap-2">
-    <Label for="now" class="flex items-center gap-2">Now Label</Label>
-    <Input placeholder="Now" bind:value={localization.now} name="now" id="now" />
-  </div>
-
-  <div class="flex flex-col gap-2">
-    <Label for="hoursShort" class="flex items-center gap-2">Hours Short Label</Label>
-    <Input placeholder="h" bind:value={localization.hoursShort} name="hoursShort" id="hoursShort" />
-  </div>
-
-  <div class="flex flex-col gap-2">
-    <Label for="minLong" class="flex items-center gap-2">Minutes Long Label</Label>
-    <Input placeholder="min" bind:value={localization.minLong} name="minLong" id="minLong" />
-  </div>
-
-  <div class="flex flex-col gap-2">
-    <Label for="minShort" class="flex items-center gap-2">Minutes Short Label</Label>
-    <Input placeholder="m" bind:value={localization.minShort} name="minShort" id="minShort" />
-  </div>
+  {@render localizationField("now", "Now Label", "Now")}
+  {@render localizationField("hoursShort", "Hours Short Label", "h")}
+  {@render localizationField("minLong", "Minutes Long Label", "min")}
+  {@render localizationField("minShort", "Minutes Short Label", "m")}
 </div>

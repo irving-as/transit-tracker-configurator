@@ -75,9 +75,10 @@ class TransitTrackerApi {
     return response.json()
   }
 
-  async getStopsWithin(bounds: number[][]): Promise<Stop[]> {
+  async getStopsWithin(bounds: number[][], signal?: AbortSignal): Promise<Stop[]> {
     const response = await fetch(
-      `${this.baseUrl}/stops/within/${bounds[0][0]},${bounds[0][1]},${bounds[1][0]},${bounds[1][1]}`
+      `${this.baseUrl}/stops/within/${bounds[0][0]},${bounds[0][1]},${bounds[1][0]},${bounds[1][1]}`,
+      { signal }
     )
     if (!response.ok) {
       throw new Error(`Error fetching stops: ${response.statusText}`)

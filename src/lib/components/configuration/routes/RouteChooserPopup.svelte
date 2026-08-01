@@ -20,7 +20,9 @@
 <Popup bind:open={shown} closeOnMove popupClass="p-0">
   <div class="route-chooser">
     {#each stops as stop (stop.stopId)}
-      <RouteChooser {shown} {stop} {selected} {disabled} {onRouteSelected} {onRouteDeselected} />
+      <div class="stop">
+        <RouteChooser {shown} {stop} {selected} {disabled} {onRouteSelected} {onRouteDeselected} />
+      </div>
     {/each}
   </div>
 </Popup>
@@ -29,6 +31,10 @@
   .route-chooser {
     max-height: 50vh;
     overflow-y: auto;
+
+    & > .stop:not(:last-child) {
+      border-bottom: 1px solid hsl(var(--muted));
+    }
   }
 
   :global(.maplibregl-popup-content) {

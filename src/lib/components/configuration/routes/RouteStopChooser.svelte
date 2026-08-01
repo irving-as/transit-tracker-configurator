@@ -83,20 +83,28 @@
   }
 
   async function getStops(bounds: number[][]) {
-    if (abortController) {
-      abortController.abort()
+    abortController?.abort()
+
+    const controller = new AbortController()
+    abortController = controller
+
+    try {
+      const response = await api.getStopsWithin(bounds, controller.signal)
+      return groupVeryCloseStops(response)
+    } finally {
+      if (abortController === controller) {
+        abortController = null
+      }
     }
+  }
 
-    abortController = new AbortController()
-    const response = await api.getStopsWithin(bounds)
-    const groupedStops = groupVeryCloseStops(response)
-
-    abortController = null
-    return groupedStops
+  function isAbortError(error: any) {
+    return error instanceof Error && error.name === "AbortError"
   }
 
   async function _onMapMoved({ target }: { target: MapLibreMap }) {
     if (target.getZoom() < 15) {
+      abortController?.abort()
       needsZoomIn = true
       stopGroups = []
       return
@@ -115,8 +123,15 @@
     needsZoomIn = false
 
     const bounds = target.getBounds()
-    stopGroups = await getStops(bounds.toArray())
-    lastBbox = boundsToBbox(bounds)
+
+    try {
+      stopGroups = await getStops(bounds.toArray())
+      lastBbox = boundsToBbox(bounds)
+    } catch (error) {
+      if (!isAbortError(error)) {
+        console.error("Error loading stops:", error)
+      }
+    }
   }
 
   function boundsToBbox(bounds: maplibregl.LngLatBounds): [number, number, number, number] {

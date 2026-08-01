@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { RouteAtStop } from "$lib/state"
   import Skeleton from "../../Skeleton.svelte"
+  import { Button } from "$lib/components/ui/button"
   import { api, type Route, type Stop } from "$lib/api"
 
   interface Props {
@@ -22,10 +23,21 @@
   }: Props = $props()
 
   let routes: Route[] = $state([])
+  let loadState: "idle" | "loading" | "loaded" | "error" = $state("idle")
   let loadError: string | null = $state(null)
 
-  async function getRoutes(stopId: string) {
-    return await api.getRoutesForStop(stopId)
+  async function loadRoutes() {
+    loadState = "loading"
+    loadError = null
+
+    try {
+      routes = await api.getRoutesForStop(stop.stopId)
+      loadState = "loaded"
+    } catch (err: any) {
+      loadError = `Failed to load routes: ${err.message}`
+      loadState = "error"
+      console.error("Error loading routes for stop:", err)
+    }
   }
 
   function isSelected(routeId: string) {
@@ -53,13 +65,8 @@
   }
 
   $effect(() => {
-    if (shown && routes.length === 0 && !loadError) {
-      getRoutes(stop.stopId)
-        .then((r) => (routes = r))
-        .catch((err) => {
-          loadError = `Failed to load routes: ${err.message}`
-          console.error("Error loading routes for stop:", err)
-        })
+    if (shown && loadState === "idle") {
+      loadRoutes()
     }
   })
 </script>
@@ -71,12 +78,13 @@
       ({stop.stopCode})
     {/if}
   </h4>
-  {#if routes.length === 0}
-    {#if loadError}
-      <div class="text-sm text-red-500">{loadError}</div>
-    {:else}
-      <Skeleton />
-    {/if}
+  {#if loadState === "error"}
+    <div class="text-sm text-red-500">{loadError}</div>
+    <Button variant="secondary" size="xs" class="mt-2" onclick={loadRoutes}>Try again</Button>
+  {:else if loadState === "loaded" && routes.length === 0}
+    <div class="text-sm text-muted-foreground text-center italic">No routes serve this stop.</div>
+  {:else if routes.length === 0}
+    <Skeleton />
   {/if}
   {#each routes as route, index}
     {@const routeSelected = isSelected(route.routeId)}
