@@ -4,6 +4,7 @@
   import { Button } from "../ui/button"
   import { toast } from "svelte-sonner"
   import { ClipboardCopy } from "@lucide/svelte"
+  import { defaultPageDurationMs, defaultTransitionDurationMs } from "$lib/config"
 
   function generateYaml() {
     const distinctColorsUsed = new Set($config.routeStyles.map((s) => s.color.replaceAll("#", "")))
@@ -26,6 +27,16 @@
         time_display: $config.timeDisplay,
         show_units: $config.timeUnits,
         list_mode: $config.listMode,
+        ...($config.arrivalTimeWindow > 0
+          ? { arrival_time_window: $config.arrivalTimeWindow }
+          : {}),
+        ...($config.pageTransition !== "none" ? { page_transition: $config.pageTransition } : {}),
+        ...($config.pageDuration !== defaultPageDurationMs
+          ? { page_duration: $config.pageDuration }
+          : {}),
+        ...($config.transitionDuration !== defaultTransitionDurationMs
+          ? { transition_duration: $config.transitionDuration }
+          : {}),
         scroll_headsigns: $config.headsignOverflow === "scroll",
         stops: routesGroupedByStop
           .map((routes) => ({

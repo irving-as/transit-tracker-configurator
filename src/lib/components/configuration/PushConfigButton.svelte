@@ -54,7 +54,7 @@
     try {
       const { results, deviceVersion } = await pushConfigToDevice($config, device)
 
-      const errors = results.filter((result) => !result)
+      const errors = results.filter((result) => !result.ok)
       if (errors.length > 0) {
         toast.warning("Unable to push full config", {
           description: "Your Transit Tracker may need a firmware update.",

@@ -1,5 +1,6 @@
 import { getWebSocketEndpoint, type ConfigState } from "./state"
-import type { TransitTrackerDevice } from "./device/transit-tracker-device"
+import { ConfigValidationError, type TransitTrackerDevice } from "./device/transit-tracker-device"
+import { arrivalTimeWindowMinFirmwareVersion } from "./config"
 import semver from "semver"
 
 async function* configRequestGenerator(
@@ -7,6 +8,15 @@ async function* configRequestGenerator(
   config: ConfigState,
   projectVersion: string | null
 ) {
+  if (
+    config.arrivalTimeWindow > 0 &&
+    (!projectVersion || semver.lt(projectVersion, arrivalTimeWindowMinFirmwareVersion))
+  ) {
+    throw new ConfigValidationError(
+      `Arrival windows require firmware ${arrivalTimeWindowMinFirmwareVersion} or later.`
+    )
+  }
+
   yield device.setTextEntity("base_url_config", getWebSocketEndpoint(config.apiBaseUrl))
 
   yield device.setTextEntity("feed_code_config", "")
@@ -46,6 +56,13 @@ async function* configRequestGenerator(
   yield device.setSelectEntity("time_display_config", config.timeDisplay)
   yield device.setSelectEntity("time_units_config", config.timeUnits)
   yield device.setSelectEntity("list_mode_config", config.listMode)
+
+  if (projectVersion && semver.gte(projectVersion, arrivalTimeWindowMinFirmwareVersion)) {
+    yield device.setTextEntity("arrival_time_window_config", config.arrivalTimeWindow.toString())
+    yield device.setSelectEntity("page_transition_config", config.pageTransition)
+    yield device.setTextEntity("page_duration_config", config.pageDuration.toString())
+    yield device.setTextEntity("transition_duration_config", config.transitionDuration.toString())
+  }
 
   if (!projectVersion || semver.lt(projectVersion, "2.7.0")) {
     yield device.setSwitchEntity(

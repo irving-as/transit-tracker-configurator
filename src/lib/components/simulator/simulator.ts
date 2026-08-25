@@ -17,6 +17,7 @@ export interface Color {
 }
 
 export type UnitDisplay = "long" | "short" | "none"
+export type PageTransition = "none" | "fade" | "scroll"
 
 export interface SimulatorOptions {
   width?: number
@@ -29,7 +30,20 @@ export interface SimulatorOptions {
   unitDisplay?: UnitDisplay
   displayDepartureTimes?: boolean
   scrollHeadsigns?: boolean
+  arrivalTimeWindow?: number
+  pageTransition?: PageTransition
+  pageDuration?: number
+  transitionDuration?: number
   realtimeColor?: Color
+}
+
+function scaleColor(color: Color, brightness: number): Color {
+  const level = Math.max(0, Math.min(1, brightness))
+  return {
+    r: Math.floor(color.r * level),
+    g: Math.floor(color.g * level),
+    b: Math.floor(color.b * level)
+  }
 }
 
 function colorToCSS(c: Color): string {
@@ -212,7 +226,8 @@ function drawRealtimeIcon(
   bottomRightY: number,
   uptime: number,
   realtimeColor: Color,
-  realtimeColorDark: Color
+  realtimeColorDark: Color,
+  brightness: number
 ) {
   const numFrames = 6
   const idleFrameDuration = 3000
@@ -244,7 +259,10 @@ function drawRealtimeIcon(
     for (let j = 0; j < 6; j++) {
       const segment = REALTIME_ICON[i][j]
       if (segment === 0) continue
-      const color = isSegmentLit(segment) ? realtimeColor : realtimeColorDark
+      const color = scaleColor(
+        isSegmentLit(segment) ? realtimeColor : realtimeColorDark,
+        brightness
+      )
       fb.drawPixel(bottomRightX - (5 - j), bottomRightY - (5 - i), color)
     }
   }
@@ -360,6 +378,10 @@ export class TransitTrackerSimulator {
   private trips: Trip[] = []
   private animationId: number | null = null
   private startTime = 0
+  private currentArrivalPage = 0
+  private previousArrivalPage = 0
+  private arrivalPageCount = 0
+  private lastArrivalPageChange = 0
 
   private width: number
   private height: number
@@ -367,6 +389,10 @@ export class TransitTrackerSimulator {
   private unitDisplay: UnitDisplay
   private displayDepartureTimes: boolean
   private scrollHeadsigns: boolean
+  private arrivalTimeWindow: number
+  private pageTransition: PageTransition
+  private pageDuration: number
+  private transitionDuration: number
   private realtimeColor: Color
   private realtimeColorDark: Color
 
@@ -377,6 +403,10 @@ export class TransitTrackerSimulator {
     this.unitDisplay = options.unitDisplay ?? "short"
     this.displayDepartureTimes = options.displayDepartureTimes ?? true
     this.scrollHeadsigns = options.scrollHeadsigns ?? true
+    this.arrivalTimeWindow = options.arrivalTimeWindow ?? 0
+    this.pageTransition = options.pageTransition ?? "none"
+    this.pageDuration = options.pageDuration ?? 5000
+    this.transitionDuration = options.transitionDuration ?? 700
     this.realtimeColor = options.realtimeColor ?? { r: 0x20, g: 0xff, b: 0x00 }
     this.realtimeColorDark = {
       r: Math.floor(this.realtimeColor.r * 0.5),
@@ -420,8 +450,12 @@ export class TransitTrackerSimulator {
   private drawFrame() {
     this.fb.clear()
 
-    if (this.trips.length === 0) {
-      const msg = "No upcoming departures"
+    const uptime = performance.now() - this.startTime
+    const rtcNow = Math.floor(Date.now() / 1000)
+    const pages = this.getVisiblePages(rtcNow, uptime)
+
+    if (pages.current.length === 0) {
+      const msg = this.displayDepartureTimes ? "No upcoming departures" : "No upcoming arrivals"
       const color = { r: 150, g: 150, b: 150 }
       const textWidth = this.font.measureText(msg)
       const x = Math.floor((this.width - textWidth) / 2)
@@ -431,8 +465,6 @@ export class TransitTrackerSimulator {
       return
     }
 
-    const uptime = performance.now() - this.startTime
-    const rtcNow = Math.floor(Date.now() / 1000)
     const fontAscender = this.font.getAscender()
     const fontDescender = this.font.getDescender()
     const nominalFontHeight = fontAscender + fontDescender
@@ -441,7 +473,7 @@ export class TransitTrackerSimulator {
     let scrollCycleDuration = 0
     if (this.scrollHeadsigns) {
       let largestOverflow = 0
-      for (const trip of this.trips) {
+      for (const trip of pages.current) {
         const overflow = this.measureTripHeadsignOverflow(trip, nominalFontHeight, rtcNow)
         largestOverflow = Math.max(largestOverflow, overflow)
       }
@@ -453,14 +485,105 @@ export class TransitTrackerSimulator {
 
     // Vertical centering (matching C++ logic)
     const maxTripsHeight = this.limit * fontAscender + (this.limit - 1) * fontDescender
-    let yOffset = Math.floor((this.height % maxTripsHeight) / 2)
+    const pageTransitionDistance = this.limit * nominalFontHeight + fontDescender
+    const yOffset = Math.floor((this.height % maxTripsHeight) / 2)
 
-    for (const trip of this.trips) {
-      this.drawTrip(trip, yOffset, nominalFontHeight, uptime, rtcNow, scrollCycleDuration)
-      yOffset += nominalFontHeight
+    const drawPage = (trips: Trip[], incoming: boolean, progress: number, brightness: number) => {
+      trips.forEach((trip, row) => {
+        let transitionOffset = 0
+        if (this.pageTransition === "scroll") {
+          transitionOffset = incoming
+            ? Math.floor(pageTransitionDistance * (1 - progress))
+            : -Math.floor(pageTransitionDistance * progress)
+        }
+
+        this.drawTrip(
+          trip,
+          yOffset + row * nominalFontHeight + transitionOffset,
+          nominalFontHeight,
+          uptime,
+          rtcNow,
+          scrollCycleDuration,
+          brightness
+        )
+      })
+    }
+
+    if (!pages.transitioning) {
+      drawPage(pages.current, true, 1, 1)
+    } else if (this.pageTransition === "fade") {
+      if (pages.progress < 0.5) {
+        drawPage(pages.previous, false, pages.progress, 1 - pages.progress * 2)
+      } else {
+        drawPage(pages.current, true, pages.progress, (pages.progress - 0.5) * 2)
+      }
+    } else {
+      drawPage(pages.previous, false, pages.progress, 1)
+      drawPage(pages.current, true, pages.progress, 1)
     }
 
     this.renderer.render(this.fb)
+  }
+
+  private getVisiblePages(
+    rtcNow: number,
+    uptime: number
+  ): { current: Trip[]; previous: Trip[]; progress: number; transitioning: boolean } {
+    if (this.arrivalTimeWindow <= 0) {
+      const current = this.trips.slice(0, this.limit)
+      return { current, previous: current, progress: 1, transitioning: false }
+    }
+
+    const windowEnd = rtcNow + this.arrivalTimeWindow * 60
+    const tripsInWindow = this.trips.filter((trip) => {
+      const displayedTime = this.displayDepartureTimes ? trip.departureTime : trip.arrivalTime
+      return displayedTime >= rtcNow - 60 && displayedTime <= windowEnd
+    })
+
+    const pageCount = Math.ceil(tripsInWindow.length / this.limit)
+    if (pageCount <= 1) {
+      this.currentArrivalPage = 0
+      this.previousArrivalPage = 0
+      this.arrivalPageCount = 0
+      this.lastArrivalPageChange = uptime
+      return { current: tripsInWindow, previous: tripsInWindow, progress: 1, transitioning: false }
+    }
+
+    if (pageCount !== this.arrivalPageCount) {
+      this.currentArrivalPage = Math.min(this.currentArrivalPage, pageCount - 1)
+      this.previousArrivalPage = this.currentArrivalPage
+      this.arrivalPageCount = pageCount
+      this.lastArrivalPageChange =
+        uptime - (this.pageTransition === "none" ? 0 : this.transitionDuration)
+    } else {
+      const elapsed = uptime - this.lastArrivalPageChange
+      const pageCycleDuration =
+        this.pageDuration + (this.pageTransition === "none" ? 0 : this.transitionDuration)
+      if (elapsed >= pageCycleDuration) {
+        const pagesElapsed = Math.floor(elapsed / pageCycleDuration)
+        const oldPage = this.currentArrivalPage
+        this.currentArrivalPage = (this.currentArrivalPage + pagesElapsed) % pageCount
+        this.previousArrivalPage = pagesElapsed === 1 ? oldPage : this.currentArrivalPage
+        this.lastArrivalPageChange += pagesElapsed * pageCycleDuration
+      }
+    }
+
+    const pageTrips = (page: number) => {
+      const firstTrip = page * this.limit
+      return tripsInWindow.slice(firstTrip, firstTrip + this.limit)
+    }
+    const transitionElapsed = uptime - this.lastArrivalPageChange
+    const transitioning =
+      this.pageTransition !== "none" &&
+      this.currentArrivalPage !== this.previousArrivalPage &&
+      transitionElapsed < this.transitionDuration
+
+    return {
+      current: pageTrips(this.currentArrivalPage),
+      previous: pageTrips(this.previousArrivalPage),
+      progress: Math.min(1, transitionElapsed / this.transitionDuration),
+      transitioning
+    }
   }
 
   private measureTripHeadsignOverflow(trip: Trip, fontHeight: number, rtcNow: number): number {
@@ -487,10 +610,11 @@ export class TransitTrackerSimulator {
     fontHeight: number,
     uptime: number,
     rtcNow: number,
-    scrollCycleDuration: number
+    scrollCycleDuration: number,
+    brightness: number
   ) {
     // Route name (left-aligned)
-    this.font.drawText(this.fb, 0, yOffset, trip.routeName, trip.routeColor)
+    this.font.drawText(this.fb, 0, yOffset, trip.routeName, scaleColor(trip.routeColor, brightness))
     const routeWidth = this.font.measureText(trip.routeName)
 
     // Time display (right-aligned)
@@ -501,7 +625,13 @@ export class TransitTrackerSimulator {
     )
     const timeWidth = this.font.measureText(timeText)
     const timeColor = trip.isRealtime ? this.realtimeColor : { r: 0xa7, g: 0xa7, b: 0xa7 }
-    this.font.drawText(this.fb, this.width + 1 - timeWidth, yOffset, timeText, timeColor)
+    this.font.drawText(
+      this.fb,
+      this.width + 1 - timeWidth,
+      yOffset,
+      timeText,
+      scaleColor(timeColor, brightness)
+    )
 
     // Headsign clipping bounds
     const headsignClippingStart = routeWidth + 3
@@ -518,7 +648,8 @@ export class TransitTrackerSimulator {
         iconBottomRightY,
         uptime,
         this.realtimeColor,
-        this.realtimeColorDark
+        this.realtimeColorDark,
+        brightness
       )
     }
 
@@ -549,11 +680,13 @@ export class TransitTrackerSimulator {
     }
 
     this.fb.startClipping(headsignClippingStart, 0, headsignClippingEnd, this.height)
-    this.font.drawText(this.fb, headsignClippingStart - scrollOffset, yOffset, trip.headsign, {
-      r: 0xff,
-      g: 0xff,
-      b: 0xff
-    })
+    this.font.drawText(
+      this.fb,
+      headsignClippingStart - scrollOffset,
+      yOffset,
+      trip.headsign,
+      scaleColor({ r: 0xff, g: 0xff, b: 0xff }, brightness)
+    )
     this.fb.endClipping()
   }
 }

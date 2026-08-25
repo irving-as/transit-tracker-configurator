@@ -47,6 +47,10 @@ export interface ConfigState {
   timeDisplay: "arrival" | "departure"
   timeUnits: "long" | "short" | "none"
   listMode: "sequential" | "nextPerRoute"
+  arrivalTimeWindow: number
+  pageTransition: "none" | "fade" | "scroll"
+  pageDuration: number
+  transitionDuration: number
   displayOrientation: "normal" | "flipped"
   headsignOverflow: "hidden" | "scroll"
   localization: Localization
@@ -84,6 +88,13 @@ function migrateBaseUrlToHttp(config: ConfigState): ConfigState {
     config.apiBaseUrl = url.href
   }
 
+  return config
+}
+
+function migrateRemovedCascade(config: ConfigState): ConfigState {
+  if ((config.pageTransition as string) === "cascade") {
+    config.pageTransition = "scroll"
+  }
   return config
 }
 
@@ -137,6 +148,10 @@ export const config = createPersistentStore<ConfigState>(
     timeDisplay: "arrival",
     timeUnits: "long",
     listMode: "sequential",
+    arrivalTimeWindow: 0,
+    pageTransition: "none",
+    pageDuration: 5000,
+    transitionDuration: 700,
     displayOrientation: "normal",
     headsignOverflow: "hidden",
     localization: {
@@ -147,7 +162,8 @@ export const config = createPersistentStore<ConfigState>(
     }
   },
   migrateFeedCodeToGlobalIds,
-  migrateBaseUrlToHttp
+  migrateBaseUrlToHttp,
+  migrateRemovedCascade
 )
 
 export interface DeviceConnection {

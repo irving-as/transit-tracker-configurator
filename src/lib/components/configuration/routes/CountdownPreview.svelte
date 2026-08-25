@@ -3,6 +3,7 @@
   import { config, type RouteAtStop } from "$lib/state"
   import TransitTrackerSimulator from "$lib/components/simulator/TransitTrackerSimulator.svelte"
   import { hexColor, type Trip as SimTrip } from "$lib/components/simulator/simulator"
+  import { maxArrivalTrips } from "$lib/config"
 
   interface Props {
     routes: RouteAtStop[]
@@ -15,6 +16,7 @@
   const routeStyles = $config.routeStyles
   const unitDisplay = $config.timeUnits
   const scrollHeadsigns = $config.headsignOverflow === "scroll"
+  const arrivalTimeWindow = $derived($config.arrivalTimeWindow)
 
   let apiTrips: ApiTrip[] = $state([])
 
@@ -45,12 +47,12 @@
         }
       })
       .filter((trip) => trip.arrivalTime > Math.floor(Date.now() / 1000))
-      .slice(0, 3)
+      .slice(0, arrivalTimeWindow > 0 ? maxArrivalTrips : 3)
   )
 
   async function getTrips() {
     const pairs = routes.map((r) => `${r.routeId},${r.stopId}`).join(";")
-    const response = await api.getSchedule(pairs, 10)
+    const response = await api.getSchedule(pairs, arrivalTimeWindow > 0 ? maxArrivalTrips : 10)
     apiTrips = response.trips
   }
 
@@ -70,7 +72,12 @@
         pixelPitch: 8,
         glowRadius: 16,
         unitDisplay,
-        scrollHeadsigns
+        displayDepartureTimes: $config.timeDisplay === "departure",
+        scrollHeadsigns,
+        arrivalTimeWindow,
+        pageTransition: $config.pageTransition,
+        pageDuration: $config.pageDuration,
+        transitionDuration: $config.transitionDuration
       }}
       class="w-full"
     />
