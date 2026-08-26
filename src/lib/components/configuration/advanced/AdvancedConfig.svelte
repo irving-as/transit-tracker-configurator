@@ -1,6 +1,7 @@
 <script lang="ts">
   import * as RadioGroup from "../../ui/radio-group"
   import { Label } from "../../ui/label"
+  import { Input } from "../../ui/input"
   import { config, type Localization } from "$lib/state"
   import { Button } from "../../ui/button"
   import { ClipboardCopy, ClipboardPaste, Pencil } from "@lucide/svelte"
@@ -8,8 +9,18 @@
   import * as Dialog from "$lib/components/ui/dialog"
   import LocalizationOptions from "./LocalizationOptions.svelte"
   import { toast } from "svelte-sonner"
+  import { minBrightness, maxBrightness } from "$lib/config"
 
   let showChangeHostDialog = $state(false)
+
+  function setBrightness(input: HTMLInputElement) {
+    const value = Number.parseInt(input.value, 10)
+    const clamped = Number.isNaN(value)
+      ? maxBrightness
+      : Math.min(maxBrightness, Math.max(minBrightness, value))
+    $config.brightness = clamped
+    input.value = clamped.toString()
+  }
 
   function saveApiBaseUrl(newUrl: string) {
     if ($config.apiBaseUrl !== newUrl) {
@@ -108,6 +119,26 @@
       <Label for="flipped">Flipped &mdash; USB port on the left</Label>
     </div>
   </RadioGroup.Root>
+</div>
+
+<div class="mb-5">
+  <h4 class="mb-1 scroll-m-20 text-xl font-semibold tracking-tight">Display Brightness</h4>
+
+  <div class="mb-2 text-sm text-muted-foreground">
+    Sets the brightness of the LED matrix, from {minBrightness} (dimmest) to {maxBrightness}
+    (brightest).
+  </div>
+
+  <div class="flex max-w-48 items-center gap-2">
+    <Input
+      type="number"
+      min={minBrightness}
+      max={maxBrightness}
+      step="1"
+      value={$config.brightness}
+      oninput={(event) => setBrightness(event.currentTarget)}
+    />
+  </div>
 </div>
 
 <div class="mb-5">

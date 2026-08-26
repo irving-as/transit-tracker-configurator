@@ -62,6 +62,7 @@ async function* configRequestGenerator(
     yield device.setSelectEntity("page_transition_config", config.pageTransition)
     yield device.setTextEntity("page_duration_config", config.pageDuration.toString())
     yield device.setTextEntity("transition_duration_config", config.transitionDuration.toString())
+    yield device.setTextEntity("brightness_config", config.brightness.toString())
   }
 
   if (!projectVersion || semver.lt(projectVersion, "2.7.0")) {

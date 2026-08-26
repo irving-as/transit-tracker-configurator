@@ -51,6 +51,7 @@ export interface ConfigState {
   pageTransition: "none" | "fade" | "scroll"
   pageDuration: number
   transitionDuration: number
+  brightness: number
   displayOrientation: "normal" | "flipped"
   headsignOverflow: "hidden" | "scroll"
   localization: Localization
@@ -152,6 +153,7 @@ export const config = createPersistentStore<ConfigState>(
     pageTransition: "none",
     pageDuration: 5000,
     transitionDuration: 700,
+    brightness: 255,
     displayOrientation: "normal",
     headsignOverflow: "hidden",
     localization: {

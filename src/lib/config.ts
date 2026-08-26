@@ -11,3 +11,5 @@ export const maxTransitionDurationMs = 5000
 export const maxArrivalTrips = 20
 export const maxArrivalTimeWindow = 180
 export const arrivalTimeWindowMinFirmwareVersion = "3.4.0"
+export const minBrightness = 0
+export const maxBrightness = 255
